@@ -1,0 +1,31 @@
+{
+  "name": "greggs-menu-tests",
+  "version": "1.0.0",
+  "description": "Automated quality suite for the Greggs.com Menu (Playwright + TypeScript)",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:functional": "playwright test --project=functional",
+    "test:a11y": "playwright test --project=a11y",
+    "test:responsive": "playwright test --project=responsive",
+    "test:mobile": "playwright test --project=mobile-android --project=mobile-ios",
+    "test:perf": "playwright test --project=performance",
+    "report": "playwright show-report reports/html",
+    "summary": "node scripts/summarise-results.mjs",
+    "typecheck": "tsc --noEmit",
+    "install:browsers": "playwright install --with-deps chromium webkit"
+  },
+  "author": "Srinivas Kommu",
+  "license": "MIT",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

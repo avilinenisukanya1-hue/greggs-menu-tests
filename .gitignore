@@ -1,0 +1,5 @@
+node_modules/
+# Traces/videos/screenshots are large – CI uploads them as artifacts instead.
+reports/artifacts/
+playwright/.cache/
+.DS_Store

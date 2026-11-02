@@ -58,7 +58,7 @@ for (const [project, list] of Object.entries(by('project'))) {
 const unexpected = rows.filter((r) => failed(r) && r.status !== 'passed');
 if (unexpected.length) {
   lines.push('', '## Unexpected failures', '');
-  for (const r of unexpected) lines.push(`- **[${r.project}] ${r.title}** — ${r.error ?? r.status}`);
+  for (const r of unexpected) lines.push(`- **[${r.project}] ${r.title}** - ${r.error ?? r.status}`);
 }
 
 const fixedDefects = rows.filter((r) => r.outcome === 'unexpected' && r.status === 'passed');

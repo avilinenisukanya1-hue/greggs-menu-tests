@@ -69,7 +69,7 @@ export class MenuPage {
     return this.page.getByRole('heading', { level: 2, name: label, exact: true });
   }
 
-  /** Cards belonging to one category section. Each section is <div><div><h2/></div>…grid…</div>. */
+  /** Cards belonging to one category section. Each section is <div><div><h2/></div>...grid...</div>. */
   sectionCards(label: string): Locator {
     return this.sectionHeading(label).locator('xpath=../..').locator('[data-test-card]');
   }

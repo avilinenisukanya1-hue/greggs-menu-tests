@@ -1,6 +1,6 @@
 # Reports
 
-Each run writes here (`npm test` → `reports/`, `npm run test:perf` → `reports/perf/`):
+Each run writes here (`npm test` -> `reports/`, `npm run test:perf` -> `reports/perf/`):
 
 - `html/` - Playwright HTML report (open with `npm run report` / `npm run report:perf`)
 - `junit.xml` - JUnit results

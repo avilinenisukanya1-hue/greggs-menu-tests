@@ -49,7 +49,8 @@ export class MenuPage {
   }
 
   async waitForGrid(): Promise<void> {
-    await expect(this.cards.first()).toBeVisible();
+    // The grid hydrates from the menu API; allow for a slow first response from production.
+    await expect(this.cards.first()).toBeVisible({ timeout: 20_000 });
   }
 
   pill(label: string): Locator {
@@ -73,9 +74,12 @@ export class MenuPage {
     return this.sectionHeading(label).locator('xpath=../..').locator('[data-test-card]');
   }
 
-  /** Category section headings currently rendered, in DOM order. */
+  /**
+   * Category section headings currently rendered, in DOM order.
+   * Uses textContent, not innerText: headings are uppercased with CSS text-transform.
+   */
   async visibleSectionLabels(knownLabels: readonly string[]): Promise<string[]> {
-    const all = await this.page.getByRole('heading', { level: 2 }).allInnerTexts();
+    const all = await this.page.getByRole('heading', { level: 2 }).allTextContents();
     return all.map((t) => t.trim()).filter((t) => knownLabels.includes(t));
   }
 
@@ -115,6 +119,11 @@ export class MenuPage {
     return this.filterDialog.locator(`input[type="checkbox"][name="${allergen}"]`);
   }
 
+  /** Upper bound of the calorie slider - the modal applies it as a ceiling even when untouched (GM-001). */
+  async calorieCeiling(): Promise<number> {
+    return Number(await this.calorieSlider.getAttribute('max'));
+  }
+
   async excludeAllergen(allergen: string): Promise<void> {
     await this.allergenCheckbox(allergen).check({ force: true });
   }
@@ -126,6 +135,17 @@ export class MenuPage {
   async applyFilters(): Promise<void> {
     await this.applyFiltersButton.click();
     await expect(this.filterDialog).toBeHidden();
+  }
+
+  async closeFilters(): Promise<void> {
+    await this.page.keyboard.press('Escape');
+    await expect(this.filterDialog).toBeHidden();
+  }
+
+  /** "Clear all" takes effect immediately but leaves the modal open with Apply disabled. */
+  async clearAllFilters(): Promise<void> {
+    await this.clearFiltersButton.click();
+    await this.closeFilters();
   }
 
   /** Number shown in the badge on the "Filter results" button (0 when none). */

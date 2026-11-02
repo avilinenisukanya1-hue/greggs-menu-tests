@@ -1,7 +1,7 @@
 import { test, expect } from '../../src/fixtures';
-import { ANCHOR_PRODUCTS, CATEGORIES } from '../../src/data/categories';
+import { ANCHOR_PRODUCTS, CATEGORIES, categoryBySlug } from '../../src/data/categories';
 
-test.describe('Menu → product detail navigation', () => {
+test.describe('Menu to product detail navigation', () => {
   test('clicking a product card opens its detail page @smoke', async ({ page, menuPage, productPage }) => {
     await menuPage.goto();
     const card = menuPage.cards.first();
@@ -25,6 +25,7 @@ test.describe('Menu → product detail navigation', () => {
         const card = menuPage.cards.first();
         const name = (await menuPage.cardTitle(card).innerText()).trim();
         await card.click();
+        await expect(page).toHaveURL(/\/menu\/product\//);
 
         await expect(productPage.title).toHaveText(name);
         await expect(productPage.heroImage).toBeVisible();
@@ -37,12 +38,15 @@ test.describe('Menu → product detail navigation', () => {
   });
 
   test('browser Back from a product returns to the same category view', async ({ page, menuPage }) => {
-    await menuPage.goto(CATEGORIES[1]);
+    const savouries = categoryBySlug('savouries-bakes');
+    await menuPage.goto(savouries);
     await menuPage.cards.first().click();
+    // Client-side navigation: wait for it to commit, or Back pops the entry before it.
+    await expect(page).toHaveURL(/\/menu\/product\//);
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`category=${CATEGORIES[1].slug}`));
+    await expect(page).toHaveURL(new RegExp(`category=${savouries.slug}`));
     await menuPage.waitForGrid();
-    expect(await menuPage.visibleSectionLabels(CATEGORIES.map((c) => c.label))).toEqual([CATEGORIES[1].label]);
+    expect(await menuPage.visibleSectionLabels(CATEGORIES.map((c) => c.label))).toEqual([savouries.label]);
   });
 
   for (const p of ANCHOR_PRODUCTS) {
@@ -54,7 +58,7 @@ test.describe('Menu → product detail navigation', () => {
       expect(res?.status()).toBe(200);
       await expect(productPage.title).toBeVisible();
       await expect(productPage.heroImage).toHaveAttribute('alt', /\S/);
-      await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /\S{10,}/);
+      await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /\w.{20,}/);
       await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);
       await expect(productPage.nutritionHeading).toBeVisible();
       expect(await productPage.portionGrams()).toBeGreaterThan(0);

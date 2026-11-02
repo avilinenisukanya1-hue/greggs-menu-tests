@@ -1,5 +1,5 @@
-import type { Browser, Page } from '@playwright/test';
-import { autoDismissCookieBanner } from './fixtures';
+import type { Browser, BrowserContextOptions } from '@playwright/test';
+import { autoDismissCookieBanner, presetCookieConsent } from './cookie-banner';
 
 export interface PageMetrics {
   ttfb: number;
@@ -7,7 +7,7 @@ export interface PageMetrics {
   load: number;
   lcp: number;
   cls: number;
-  /** Sum of main-thread blocking time (long tasks beyond 50ms) up to load – a lab proxy for TBT. */
+  /** Sum of main-thread blocking time (long tasks beyond 50ms) up to load - a lab proxy for TBT. */
   tbt: number;
   transferKB: number;
   requests: number;
@@ -39,31 +39,41 @@ const OBSERVERS = () => {
   }).observe({ type: 'longtask', buffered: true });
 };
 
-export async function measure(browser: Browser, path: string): Promise<PageMetrics> {
-  // Fresh context each time = cold cache, like a first-time visitor.
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-GB' });
-  const page: Page = await context.newPage();
-  await autoDismissCookieBanner(page);
-  await page.addInitScript(OBSERVERS);
-  await page.goto(path, { waitUntil: 'load' });
-  await page.waitForTimeout(2500); // let LCP/CLS settle after load
-  const m = await page.evaluate(() => {
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-    const res = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-    const p = (window as unknown as { __perf: { lcp: number; cls: number; tbt: number } }).__perf;
-    return {
-      ttfb: nav.responseStart - nav.startTime,
-      domContentLoaded: nav.domContentLoadedEventEnd - nav.startTime,
-      load: nav.loadEventEnd - nav.startTime,
-      lcp: p.lcp,
-      cls: p.cls,
-      tbt: p.tbt,
-      transferKB: Math.round((nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0)) / 1024),
-      requests: res.length + 1,
-    };
-  });
-  await context.close();
-  return m;
+/**
+ * Loads `path` once in a fresh context (cold cache, like a first-time visitor) and
+ * returns navigation timing plus the Web Vitals collected by OBSERVERS.
+ * Pass the project's `baseURL`/`userAgent` in `options` - a manually created
+ * context does not inherit them from the config.
+ */
+export async function measure(browser: Browser, path: string, options: BrowserContextOptions = {}): Promise<PageMetrics> {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-GB', ...options });
+  try {
+    // The banner would otherwise count towards CLS and LCP on every cold load.
+    await presetCookieConsent(context);
+    const page = await context.newPage();
+    await autoDismissCookieBanner(page);
+    await page.addInitScript(OBSERVERS);
+    await page.goto(path, { waitUntil: 'load' });
+    // LCP and CLS can still update after the load event; give them a fixed settle window.
+    await page.waitForTimeout(2500);
+    return await page.evaluate(() => {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      const res = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+      const p = (window as unknown as { __perf: { lcp: number; cls: number; tbt: number } }).__perf;
+      return {
+        ttfb: nav.responseStart - nav.startTime,
+        domContentLoaded: nav.domContentLoadedEventEnd - nav.startTime,
+        load: nav.loadEventEnd - nav.startTime,
+        lcp: p.lcp,
+        cls: p.cls,
+        tbt: p.tbt,
+        transferKB: Math.round((nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0)) / 1024),
+        requests: res.length + 1,
+      };
+    });
+  } finally {
+    await context.close();
+  }
 }
 
 export function median(values: number[]): number {

@@ -9,13 +9,15 @@
     "test:a11y": "playwright test --project=a11y",
     "test:responsive": "playwright test --project=responsive",
     "test:mobile": "playwright test --project=mobile-android --project=mobile-ios",
-    "test:perf": "playwright test --project=performance",
+    "test:perf": "playwright test -c playwright.perf.config.ts",
     "report": "playwright show-report reports/html",
+    "report:perf": "playwright show-report reports/perf/html",
     "summary": "node scripts/summarise-results.mjs",
+    "summary:perf": "node scripts/summarise-results.mjs reports/perf/results.json",
     "typecheck": "tsc --noEmit",
     "install:browsers": "playwright install --with-deps chromium webkit"
   },
-  "author": "Srinivas Kommu",
+  "author": "Sukanya Avilineni",
   "license": "MIT",
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

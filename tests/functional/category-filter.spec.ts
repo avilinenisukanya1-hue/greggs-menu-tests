@@ -1,6 +1,6 @@
 import { test, expect } from '../../src/fixtures';
-import { CATEGORIES } from '../../src/data/categories';
-import { DEFECTS, defectAnnotation } from '../../src/data/known-defects';
+import { CATEGORIES, categoryBySlug } from '../../src/data/categories';
+import { DEFECTS, knownDefect } from '../../src/data/known-defects';
 
 const LABELS = CATEGORIES.map((c) => c.label);
 
@@ -34,9 +34,10 @@ test.describe('Category filtering', () => {
   });
 
   test('"All" restores every category and the full product list', async ({ page, menuPage, menuApi }) => {
-    await menuPage.goto(CATEGORIES[0]);
+    const breakfast = categoryBySlug('breakfast');
+    await menuPage.goto(breakfast);
     await menuPage.selectCategory('All');
-    await expect(page).not.toHaveURL(new RegExp(`category=${CATEGORIES[0].slug}`));
+    await expect(page).not.toHaveURL(new RegExp(`category=${breakfast.slug}`));
     expect(await menuPage.visibleSectionLabels(LABELS)).toEqual(LABELS);
     await expect(menuPage.cards).toHaveCount(menuApi.articles.length);
   });
@@ -50,7 +51,7 @@ test.describe('Category filtering', () => {
 
   test('the sliding highlight sits behind the selected pill', async ({ menuPage }) => {
     // The active state is drawn by a single animated element ([data-test-active]) that slides
-    // under the chosen pill – the pills themselves have no state of their own (see GM-002).
+    // under the chosen pill - the pills themselves have no state of their own (see GM-002).
     await menuPage.goto();
     await expect.poll(() => menuPage.highlightedPill()).toBe('All');
     for (const label of ['Hot Food', 'Breakfast', 'All']) {
@@ -60,8 +61,7 @@ test.describe('Category filtering', () => {
   });
 
   test('browser Back returns to the previously selected category', async ({ page, menuPage }) => {
-    test.info().annotations.push(defectAnnotation(DEFECTS.CATEGORY_HISTORY));
-    test.fail(true, DEFECTS.CATEGORY_HISTORY.id);
+    knownDefect(DEFECTS.CATEGORY_HISTORY);
 
     await menuPage.goto();
     await menuPage.selectCategory('Breakfast');

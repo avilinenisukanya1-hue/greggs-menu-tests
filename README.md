@@ -2,13 +2,13 @@
 
 Playwright + TypeScript suite covering the **Menu** section of [greggs.com](https://www.greggs.com/menu): functional behaviour, data consistency, accessibility, responsiveness and performance.
 
-**117 tests · 6 Playwright projects · 7 defects found** (see [`docs/FINDINGS.md`](docs/FINDINGS.md))
+**119 tests · 6 Playwright projects · 13 defects found** (see [`docs/FINDINGS.md`](docs/FINDINGS.md))
 
 | Doc | What's in it |
 |---|---|
 | [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) | Scope, risk analysis, full coverage matrix, what's out of scope |
 | [`docs/FINDINGS.md`](docs/FINDINGS.md) | Defects with steps, evidence, WCAG mapping and suggested fixes |
-| `reports/` | Latest HTML report, JUnit XML, JSON results and `SUMMARY.md` |
+| [`reports/SUMMARY.md`](reports/SUMMARY.md) · [`reports/perf/SUMMARY.md`](reports/perf/SUMMARY.md) | Results of the latest full run (HTML report is generated per run / published by CI) |
 
 ---
 
@@ -42,11 +42,14 @@ src/
   pages/                 MenuPage, ProductPage (page objects)
   api/menu-api.ts        Zod schema + helpers (kcal, allergens…)
   data/categories.ts     category ids/slugs/labels, allergen list, anchor products
-  data/known-defects.ts  defect registry (GM-001…GM-007) used by test.fail annotations
-  a11y.ts · perf.ts      axe wrapper · Web Vitals collection & budgets
+  data/known-defects.ts  defect registry (GM-001..GM-013) + knownDefect() marker
+  a11y.ts, perf.ts       axe wrapper, Web Vitals collection & budgets
+  cookie-banner.ts       OneTrust consent preset + "Reject all" fallback handler
 tests/
   functional/  data/  accessibility/  responsive/  performance/
-scripts/summarise-results.mjs   JSON report → reports/SUMMARY.md (+ GitHub job summary)
+playwright.config.ts            functional / a11y / responsive / mobile projects
+playwright.perf.config.ts       performance project, run on its own
+scripts/summarise-results.mjs   JSON report → SUMMARY.md (+ GitHub job summary)
 .github/workflows/menu-tests.yml  CI: push/PR/daily schedule, artifacts, report on GitHub Pages
 ```
 
@@ -58,16 +61,17 @@ Requires **Node 20+** (`.nvmrc` pins 22).
 npm ci
 npm run install:browsers      # Chromium + WebKit (with OS deps)
 
-npm test                      # everything (~117 tests)
+npm test                      # functional, data, a11y, responsive, mobile (113 tests, ~4 min)
 npm run test:smoke            # @smoke journeys only
 npm run test:functional       # functional + data consistency
 npm run test:a11y
 npm run test:responsive
 npm run test:mobile           # Pixel 7 + iPhone 14
-npm run test:perf
+npm run test:perf             # separate config, 1 worker - see below
 
 npm run summary               # write reports/SUMMARY.md from the last run
 npm run report                # open the HTML report
+npm run report:perf           # perf run has its own report in reports/perf/
 ```
 
 Useful options:
@@ -94,11 +98,12 @@ In GitHub Actions the summary appears on the run page, the full report is upload
 - **Production is the target.** There's no public staging environment, so the suite runs read-only against `www.greggs.com`, with low worker counts and batched image checks to keep traffic modest. Nothing is ordered, submitted or signed into.
 - **The `articles/masters` response is the source of truth** for what the menu should show. If the API itself were wrong, UI ⇄ API checks wouldn't catch it – which is why the API also has its own contract and data-quality tests.
 - **Search semantics** were inferred by exploration (product name only, words in order, case-insensitive) and encoded as the oracle. If that is not the intended behaviour, only the oracle function needs to change.
-- **Cookie banner** is dismissed with *Reject all* (privacy-preserving). Behaviour with analytics cookies accepted isn't covered.
+- **Cookie banner** is suppressed by pre-setting OneTrust's consent cookies to *necessary only* (the same state as *Reject all*), with a locator handler as a fallback. OneTrust loads late, and a banner appearing mid-test steals keyboard focus. Behaviour with analytics cookies accepted isn't covered.
 - **UK locale** (`en-GB`, `Europe/London`).
 
 ## Limitations
 
+- **Performance runs on its own.** `npm test` doesn't include the perf specs: timings measured while ~100 functional tests load the same site are noise. `npm run test:perf` uses `playwright.perf.config.ts` (1 worker, no retries) and CI runs it as a separate step.
 - **Lab, not field, performance.** Budgets are measured from a CI runner/laptop on a cold cache; they indicate regressions, not real-user Core Web Vitals (use CrUX/RUM for that). Perf assertions are *soft*, so one slow metric doesn't hide the others.
 - **Automated accessibility is partial.** axe only detects a subset of WCAG issues. Keyboard and semantic tests extend that, but screen-reader announcement quality, cognitive load and zoom-to-400% were checked only lightly by hand.
 - **Detail pages are sampled** (first + last product per category + highest-calorie items, ~15 pages) to keep run time reasonable. Run-time vs coverage can be tuned in `sample()` in `tests/data/ui-api-consistency.spec.ts`.

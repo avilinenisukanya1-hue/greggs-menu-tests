@@ -1,9 +1,11 @@
 import { test, expect } from '../../src/fixtures';
 import type { Page } from '@playwright/test';
+import { SAUSAGE_ROLL } from '../../src/data/categories';
+import { DEFECTS, knownDefect } from '../../src/data/known-defects';
 
 /**
  * Layout checks across breakpoints. The grid is Tailwind:
- *   grid-cols-2  (<640px) · sm:grid-cols-3 (640–767px) · md:grid-cols-4 (≥768px)
+ *   grid-cols-2  (<640px) | sm:grid-cols-3 (640-767px) | md:grid-cols-4 (>=768px)
  * Assertions measure rendered geometry, never class names.
  */
 const VIEWPORTS = [
@@ -26,7 +28,7 @@ async function columnsInFirstRow(page: Page): Promise<number> {
 }
 
 for (const vp of VIEWPORTS) {
-  test.describe(`${vp.name} – ${vp.width}px`, () => {
+  test.describe(`${vp.name} - ${vp.width}px`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
     test(`menu has no horizontal scroll and shows ${vp.cols} product columns`, async ({ page, menuPage }) => {
@@ -51,7 +53,7 @@ for (const vp of VIEWPORTS) {
 
     test('every category pill can be reached and used', async ({ page, menuPage }) => {
       await menuPage.goto();
-      // On narrow screens the pill bar scrolls horizontally – the last pill must still be usable.
+      // On narrow screens the pill bar scrolls horizontally; the last pill must still be usable.
       const last = menuPage.pill('Hot Food');
       await last.scrollIntoViewIfNeeded();
       await expect(last).toBeInViewport();
@@ -61,7 +63,9 @@ for (const vp of VIEWPORTS) {
     });
 
     test('product detail page has no horizontal scroll', async ({ page, productPage }) => {
-      await productPage.goto('sausage-roll-1000446');
+      // The overflowing SVG ends at ~388px, so only viewports narrower than that are affected.
+      knownDefect(DEFECTS.PRODUCT_PAGE_REFLOW, vp.width < 388);
+      await productPage.goto(SAUSAGE_ROLL.slug);
       await expect(productPage.nutritionTable).toBeVisible();
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
     });
@@ -71,7 +75,7 @@ for (const vp of VIEWPORTS) {
 test.describe('Touch targets (phone)', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('pills, filter button and cards meet the WCAG 2.2 minimum target size (24×24px)', async ({ menuPage }) => {
+  test('pills, filter button and cards meet the WCAG 2.2 minimum target size (24x24px)', async ({ menuPage }) => {
     await menuPage.goto();
     const small = await menuPage.page
       .locator('[data-test-filter], [data-test="filterButton"], [data-test-card]')
@@ -79,7 +83,7 @@ test.describe('Touch targets (phone)', () => {
         els
           .map((e) => ({ id: e.getAttribute('data-test-filter') ?? e.getAttribute('data-test-card') ?? 'filterButton', r: e.getBoundingClientRect() }))
           .filter(({ r }) => r.width > 0 && (r.width < 24 || r.height < 24))
-          .map(({ id, r }) => `${id}: ${Math.round(r.width)}×${Math.round(r.height)}`),
+          .map(({ id, r }) => `${id}: ${Math.round(r.width)}x${Math.round(r.height)}`),
       );
     expect(small).toEqual([]);
   });

@@ -3,7 +3,7 @@ import { CATEGORIES } from '../../src/data/categories';
 
 const LABELS = CATEGORIES.map((c) => c.label);
 
-test.describe('Menu page – rendering', () => {
+test.describe('Menu page - rendering', () => {
   test('loads successfully with correct document metadata @smoke', async ({ page, menuPage }) => {
     const response = await page.goto('/menu');
     expect(response?.status(), 'HTTP status of /menu').toBe(200);
@@ -38,8 +38,9 @@ test.describe('Menu page – rendering', () => {
         code: a.getAttribute('data-test-card'),
         href: a.getAttribute('href'),
         title: a.querySelector('h3')?.textContent?.trim() ?? '',
+        // src is only set once the card scrolls into view (IntersectionObserver), so it isn't
+        // checked here - "all product images actually load once scrolled into view" covers it.
         imgAlt: a.querySelector('img')?.getAttribute('alt') ?? null,
-        imgSrc: a.querySelector('img')?.getAttribute('src') ?? '',
       })),
     );
     expect(cards.length).toBeGreaterThan(0);
@@ -48,7 +49,6 @@ test.describe('Menu page – rendering', () => {
     for (const c of cards) {
       if (!c.title) problems.push(`${c.code}: empty title`);
       if (!c.imgAlt) problems.push(`${c.code}: image missing alt`);
-      if (!c.imgSrc) problems.push(`${c.code}: image missing src`);
       // Slug format: /menu/product/<kebab-name>-<articleCode>
       if (!c.href?.match(new RegExp(`^/menu/product/[a-z0-9-]+-${c.code}$`))) {
         problems.push(`${c.code}: unexpected href ${c.href}`);
@@ -64,27 +64,33 @@ test.describe('Menu page – rendering', () => {
     expect(dupes).toEqual([]);
   });
 
-  test('all product images actually load once scrolled into view', async ({ page, menuPage }) => {
+  test('all product images actually load once scrolled into view', async ({ menuPage }) => {
+    test.slow(); // ~140 images over the network
     await menuPage.goto();
-    // Images are lazy-loaded; scroll every card into view so each one requests its image.
+    // src is only assigned when a card intersects the viewport, so every card must be scrolled to.
     const total = await menuPage.cards.count();
-    for (let i = 0; i < total; i += 4) {
+    for (let i = 0; i < total; i++) {
       await menuPage.cards.nth(i).scrollIntoViewIfNeeded();
     }
-    await page.waitForLoadState('networkidle').catch(() => {});
+    const pending = () =>
+      menuPage.cards.evaluateAll((els) =>
+        els.map((a) => a.querySelector('img')).filter((img) => !img?.getAttribute('src') || !img.complete).length,
+      );
+    await expect.poll(pending, { message: 'images still without src or loading', timeout: 30_000 }).toBe(0);
 
-    const broken = await menuPage.cards.evaluateAll(async (els) => {
-      const imgs = els.map((a) => a.querySelector('img')).filter((i): i is HTMLImageElement => !!i);
-      await Promise.all(imgs.map((img) => (img.complete ? null : img.decode().catch(() => null))));
-      return imgs.filter((img) => img.naturalWidth === 0).map((img) => img.currentSrc || img.src);
-    });
+    const broken = await menuPage.cards.evaluateAll((els) =>
+      els
+        .map((a) => a.querySelector('img'))
+        .filter((img): img is HTMLImageElement => !!img && img.naturalWidth === 0)
+        .map((img) => img.currentSrc || img.src),
+    );
     expect(broken, `Broken images:\n${broken.join('\n')}`).toEqual([]);
   });
 
   test('loads without first-party JavaScript errors or failed first-party requests', async ({ page, menuPage }) => {
     const jsErrors: string[] = [];
     const failed: string[] = [];
-    // Cross-origin (third-party) script errors surface as an opaque "Script error." – not ours to own.
+    // Cross-origin (third-party) script errors surface as an opaque "Script error." - not ours to own.
     page.on('pageerror', (e) => {
       if (!/^Script error\.?$/.test(e.message)) jsErrors.push(e.message);
     });

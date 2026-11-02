@@ -1,5 +1,7 @@
 import { test, expect } from '../../src/fixtures';
-import type { Article } from '../../src/api/menu-api';
+import { kcal, type Article } from '../../src/api/menu-api';
+import { categoryBySlug } from '../../src/data/categories';
+import { DEFECTS, knownDefect } from '../../src/data/known-defects';
 
 /**
  * Observed search semantics (exploratory session): case-insensitive match on the
@@ -19,9 +21,16 @@ test.describe('Product search', () => {
   for (const query of ['latte', 'chicken', 'bake', 'Steak', 'SAUSAGE ROLL', '  pizza  ']) {
     test(`"${query}" returns exactly the products whose name matches`, async ({ menuPage, menuApi }) => {
       const expected = expectedMatches(menuApi.articles, query);
-      test.skip(expected.length === 0, `No live products match "${query}" – menu has changed`);
+      test.skip(expected.length === 0, `No live products match "${query}" - menu has changed`);
 
       await menuPage.goto();
+      // Search results are also capped by the calorie slider's ceiling, even untouched (GM-001).
+      await menuPage.openFilters();
+      const ceiling = await menuPage.calorieCeiling();
+      await menuPage.closeFilters();
+      const overCeiling = menuApi.articles.filter((a) => expected.includes(a.articleCode) && kcal(a) > ceiling);
+      knownDefect(DEFECTS.CALORIE_SLIDER_MAX, overCeiling.length > 0);
+
       await menuPage.search(query);
 
       await expect(menuPage.cards).toHaveCount(expected.length);
@@ -51,16 +60,16 @@ test.describe('Product search', () => {
   });
 
   test('search combines with the category filter', async ({ menuPage, menuApi }) => {
-    // "chicken" appears in several categories – restricting to Hot Food must intersect the two.
-    const hotFoodId = 6;
+    // "chicken" appears in several categories; restricting to Hot Food must intersect the two.
+    const hotFood = categoryBySlug('hot-food');
     const expected = expectedMatches(
-      menuApi.articles.filter((a) => a.articleCategoryId === hotFoodId),
+      menuApi.articles.filter((a) => a.articleCategoryId === hotFood.id),
       'chicken',
     );
     test.skip(expected.length === 0, 'No hot-food chicken products on the live menu');
 
     await menuPage.goto();
-    await menuPage.selectCategory('Hot Food');
+    await menuPage.selectCategory(hotFood.label);
     await menuPage.search('chicken');
     await expect(menuPage.cards).toHaveCount(expected.length);
     expect((await menuPage.cardCodes()).sort()).toEqual(expected);

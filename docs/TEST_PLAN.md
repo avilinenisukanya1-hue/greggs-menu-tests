@@ -32,13 +32,13 @@
 | Search | `functional/search.spec.ts` | Result set = name-match oracle for 6 queries (case, whitespace, multi-word), empty state + chip, clear, combine with category, XSS-safe |
 | Advanced filters | `functional/advanced-filters.spec.ts` | All 11 allergens vs API, combined exclusions, badge count, Clear all, calorie ceiling, slider range (GM-001), modal category counts |
 | Navigation | `functional/product-navigation.spec.ts` | Card → detail, first product of each category, Back keeps category, anchor products by direct link, 404 |
-| API contract | `data/api-contract.spec.ts` | Status/content-type, Zod schema, no unpublished/hidden/dupes, categories, nutrients present, kJ≈kcal×4.184, sat≤fat, sugar≤carbs, clean names, descriptions, every thumbnail serves an image |
+| API contract | `data/api-contract.spec.ts` | Status/content-type, Zod schema, no unpublished/hidden/dupes, categories, nutrients present, kJ≈kcal×4.184, sat≤fat, sugar≤carbs, clean names (GM-010), sortOrder present (GM-011), descriptions, every thumbnail serves an image (GM-012) |
 | UI ⇄ API | `data/ui-api-consistency.spec.ts` | Listing = API (codes + names), products in correct section, detail pages match name/kcal/kJ/portion/allergens |
 | Accessibility | `accessibility/axe.spec.ts` | WCAG 2.2 AA axe scan on 5 states; new violations fail, known ones annotated |
 | Accessibility | `accessibility/keyboard-and-semantics.spec.ts` | Tab/Enter on pills, card focus ring, dialog focus in/out + Escape, heading order, labelled search, GM-002/003/004/007 |
-| Responsive | `responsive/layout.spec.ts` | 320–1440px: no horizontal scroll (WCAG 1.4.10), 2/3/4 columns, even cards, pill bar usable, product page fits; 24×24 targets (WCAG 2.5.8) |
+| Responsive | `responsive/layout.spec.ts` | 320–1440px: no horizontal scroll (WCAG 1.4.10), 2/3/4 columns, even cards, pill bar usable, product page fits (GM-008); 24×24 targets (WCAG 2.5.8) |
 | Mobile devices | `mobile-android`, `mobile-ios` projects | `@smoke` journeys on Pixel 7 (Chromium) and iPhone 14 (WebKit) |
-| Performance | `performance/page-performance.spec.ts` | TTFB/DCL/load/LCP/CLS/TBT budgets, API latency, lazy-loading, client-side category switch <1s, thumbnail weight |
+| Performance | `performance/page-performance.spec.ts` (own config, 1 worker) | TTFB/DCL/load/LCP/CLS/TBT budgets, API latency, lazy-loading, client-side category switch <1s, thumbnail weight (GM-009), CLS (GM-013) |
 
 ## 4. Out of scope (and why)
 

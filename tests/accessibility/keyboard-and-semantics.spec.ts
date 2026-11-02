@@ -1,7 +1,8 @@
 import { test, expect } from '../../src/fixtures';
-import { DEFECTS, defectAnnotation } from '../../src/data/known-defects';
+import { DEFECTS, knownDefect } from '../../src/data/known-defects';
+import { SAUSAGE_ROLL } from '../../src/data/categories';
 
-test.describe('Accessibility – keyboard operation', () => {
+test.describe('Accessibility - keyboard operation', () => {
   test('category pills can be reached with Tab and activated with Enter', async ({ page, menuPage }) => {
     await menuPage.goto();
     const target = menuPage.pill('Sweet Treats');
@@ -43,15 +44,19 @@ test.describe('Accessibility – keyboard operation', () => {
     await menuPage.filterButton.focus();
     await page.keyboard.press('Enter');
     await expect(menuPage.filterDialog).toBeVisible();
-    // Focus must move inside the modal.
-    expect(await menuPage.filterDialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
+    // Focus must move inside the modal (it lands there a tick after the dialog opens).
+    await expect
+      .poll(() => menuPage.filterDialog.evaluate((d) => d.contains(document.activeElement)), {
+        message: 'focus is inside the dialog',
+      })
+      .toBe(true);
     await page.keyboard.press('Escape');
     await expect(menuPage.filterDialog).toBeHidden();
     await expect(menuPage.filterButton).toBeFocused();
   });
 });
 
-test.describe('Accessibility – semantics', () => {
+test.describe('Accessibility - semantics', () => {
   test('menu page has exactly one h1 and no skipped heading levels in the main content', async ({ page, menuPage }) => {
     await menuPage.goto();
     const levels = await page
@@ -69,8 +74,7 @@ test.describe('Accessibility – semantics', () => {
   });
 
   test('selected category pill exposes its state to assistive technology', async ({ menuPage }) => {
-    test.info().annotations.push(defectAnnotation(DEFECTS.PILL_STATE_NOT_EXPOSED));
-    test.fail(true, DEFECTS.PILL_STATE_NOT_EXPOSED.id);
+    knownDefect(DEFECTS.PILL_STATE_NOT_EXPOSED);
     await menuPage.goto();
     await menuPage.selectCategory('Hot Food');
     const pill = menuPage.pill('Hot Food');
@@ -83,25 +87,22 @@ test.describe('Accessibility – semantics', () => {
   });
 
   test('calorie slider has an accessible name', async ({ page, menuPage }) => {
-    test.info().annotations.push(defectAnnotation(DEFECTS.SLIDER_NO_NAME));
-    test.fail(true, DEFECTS.SLIDER_NO_NAME.id);
+    knownDefect(DEFECTS.SLIDER_NO_NAME);
     await menuPage.goto();
     await menuPage.openFilters();
     await expect(page.getByRole('slider', { name: /calor/i })).toBeVisible({ timeout: 3_000 });
   });
 
   test('filters dialog close button has an accessible name', async ({ menuPage }) => {
-    test.info().annotations.push(defectAnnotation(DEFECTS.DIALOG_CLOSE_NO_NAME));
-    test.fail(true, DEFECTS.DIALOG_CLOSE_NO_NAME.id);
+    knownDefect(DEFECTS.DIALOG_CLOSE_NO_NAME);
     await menuPage.goto();
     await menuPage.openFilters();
     await expect(menuPage.filterDialog.getByRole('button', { name: /close/i })).toBeVisible({ timeout: 3_000 });
   });
 
   test('product nutrition table exposes header cells', async ({ productPage }) => {
-    test.info().annotations.push(defectAnnotation(DEFECTS.NUTRITION_TABLE_HEADERS));
-    test.fail(true, DEFECTS.NUTRITION_TABLE_HEADERS.id);
-    await productPage.goto('sausage-roll-1000446');
+    knownDefect(DEFECTS.NUTRITION_TABLE_HEADERS);
+    await productPage.goto(SAUSAGE_ROLL.slug);
     await expect(productPage.nutritionTable.locator('th')).not.toHaveCount(0, { timeout: 3_000 });
   });
 });

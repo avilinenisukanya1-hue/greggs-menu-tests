@@ -24,6 +24,12 @@ export const CATEGORIES: readonly Category[] = [
   { id: 6, label: 'Hot Food', slug: 'hot-food' },
 ] as const;
 
+export function categoryBySlug(slug: string): Category {
+  const c = CATEGORIES.find((x) => x.slug === slug);
+  if (!c) throw new Error(`Unknown category slug "${slug}"`);
+  return c;
+}
+
 /** The 14 UK regulated allergens are a superset; these are the ones the filter exposes. */
 export const FILTERABLE_ALLERGENS = [
   'Soya',
@@ -41,9 +47,12 @@ export const FILTERABLE_ALLERGENS = [
 
 export type Allergen = (typeof FILTERABLE_ALLERGENS)[number];
 
-/** Long-standing core range items – used as stable anchors for product-page tests. */
+/** Long-standing core range items - used as stable anchors for product-page tests. */
 export const ANCHOR_PRODUCTS = [
   { code: '1000446', name: 'Sausage Roll', slug: 'sausage-roll-1000446' },
   { code: '1000514', name: 'Steak Bake', slug: 'steak-bake-1000514' },
   { code: '1000516', name: 'Cheese & Onion Bake', slug: 'cheese-onion-bake-1000516' },
 ] as const;
+
+/** Default product for single-page checks (a11y, responsive, perf). */
+export const SAUSAGE_ROLL = ANCHOR_PRODUCTS[0];

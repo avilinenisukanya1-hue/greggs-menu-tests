@@ -1,3 +1,5 @@
+import { test } from '@playwright/test';
+
 /**
  * Defects found while building this suite (exploratory session, 29 Oct 2026).
  *
@@ -5,7 +7,7 @@
  * and are marked with `test.fail()` + an annotation pointing here. That means:
  *   - the suite stays green while the defect exists (it is "expected to fail"),
  *   - the moment Greggs fixes it, Playwright reports "unexpectedly passed",
- *     prompting us to remove the marker – the test then guards against regression.
+ *     prompting us to remove the marker - the test then guards against regression.
  *
  * Full write-ups (steps, evidence, impact) are in docs/FINDINGS.md.
  */
@@ -48,7 +50,7 @@ export const DEFECTS = {
   },
   CATEGORY_HISTORY: {
     id: 'GM-006',
-    title: 'Category changes replace history – browser Back leaves the menu instead of the previous category',
+    title: 'Category changes replace history - browser Back leaves the menu instead of the previous category',
     severity: 'Low',
   },
   NUTRITION_TABLE_HEADERS: {
@@ -56,13 +58,49 @@ export const DEFECTS = {
     title: 'Nutrition table has no header cells (<th>), so values are not associated with their column/row',
     severity: 'Medium',
   },
+  PRODUCT_PAGE_REFLOW: {
+    id: 'GM-008',
+    title: 'Product page scrolls horizontally at 320px (decorative SVG overflows the viewport by 68px)',
+    severity: 'Medium',
+  },
+  THUMBNAIL_WEIGHT: {
+    id: 'GM-009',
+    title: 'Product thumbnails are up to 860KB (512px PNGs shown at ~190px)',
+    severity: 'Medium',
+  },
+  NAME_TRAILING_WHITESPACE: {
+    id: 'GM-010',
+    title: 'Product names in the menu data carry trailing whitespace (leaks into card titles and image alt text)',
+    severity: 'Low',
+  },
+  MISSING_SORT_ORDER: {
+    id: 'GM-011',
+    title: 'Some products have sortOrder: null in the menu data, so their position in the grid is undefined',
+    severity: 'Low',
+  },
+  THUMBNAIL_CONTENT_TYPE: {
+    id: 'GM-012',
+    title: 'Product images are served as application/octet-stream instead of image/png',
+    severity: 'Low',
+  },
+  MENU_LAYOUT_SHIFT: {
+    id: 'GM-013',
+    title: 'Menu page CLS ~0.13: the product grid renders without reserved space and pushes content below it off-screen',
+    severity: 'Medium',
+  },
 } as const satisfies Record<string, KnownDefect>;
 
-/** axe rule ids already covered by a logged defect – reported, but not failed on twice. */
+/** axe rule ids already covered by a logged defect - reported, but not failed on twice. */
 export const KNOWN_AXE_RULES: ReadonlyMap<string, string> = new Map(
   Object.values(DEFECTS).flatMap((d) => ('axeRules' in d ? d.axeRules.map((r) => [r, d.id] as const) : [])),
 );
 
-export function defectAnnotation(d: KnownDefect) {
-  return { type: 'known-defect', description: `${d.id}: ${d.title} (see docs/FINDINGS.md)` };
+/**
+ * Marks the running test as exercising a known defect: annotates it for the report and
+ * flips it to expected-failure. Pass `condition` when the defect only applies to some data.
+ */
+export function knownDefect(d: KnownDefect, condition = true): void {
+  if (!condition) return;
+  test.info().annotations.push({ type: 'known-defect', description: `${d.id}: ${d.title} (see docs/FINDINGS.md)` });
+  test.fail(true, d.id);
 }

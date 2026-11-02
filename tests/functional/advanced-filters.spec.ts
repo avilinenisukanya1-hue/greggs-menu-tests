@@ -1,27 +1,32 @@
 import { test, expect } from '../../src/fixtures';
 import { CATEGORIES, FILTERABLE_ALLERGENS } from '../../src/data/categories';
-import { DEFECTS, defectAnnotation } from '../../src/data/known-defects';
+import { DEFECTS, knownDefect } from '../../src/data/known-defects';
 import { hasAllergen, kcal } from '../../src/api/menu-api';
 
 /**
  * The "Filter results" modal: allergen exclusions ("No Milk" etc.), a calorie ceiling
  * slider and category checkboxes. Allergen filtering is safety-relevant, so every
- * allergen is checked against the API's own allergen data – the UI must hide every
+ * allergen is checked against the API's own allergen data: the UI must hide every
  * product containing it, and must not hide anything that doesn't.
+ *
+ * Applying the modal also applies the calorie slider's ceiling, even when it hasn't been
+ * moved, so expectations exclude products above it. That gap is logged once, as GM-001,
+ * rather than failing every allergen test.
  */
-test.describe('Advanced filters – allergens', () => {
+test.describe('Advanced filters - allergens', () => {
   for (const allergen of FILTERABLE_ALLERGENS) {
-    test(`"No ${allergen}" hides every product containing ${allergen} – and only those`, async ({
+    test(`"No ${allergen}" hides every product containing ${allergen} - and only those`, async ({
       menuPage,
       menuApi,
     }) => {
+      await menuPage.goto();
+      await menuPage.openFilters();
+      const ceiling = await menuPage.calorieCeiling();
       const expected = menuApi.articles
-        .filter((a) => !hasAllergen(a, allergen))
+        .filter((a) => !hasAllergen(a, allergen) && kcal(a) <= ceiling)
         .map((a) => a.articleCode)
         .sort();
 
-      await menuPage.goto();
-      await menuPage.openFilters();
       await menuPage.excludeAllergen(allergen);
       await menuPage.applyFilters();
 
@@ -39,13 +44,14 @@ test.describe('Advanced filters – allergens', () => {
     menuApi,
   }) => {
     const excluded = ['Milk', 'Wheat'];
+    await menuPage.goto();
+    await menuPage.openFilters();
+    const ceiling = await menuPage.calorieCeiling();
     const expected = menuApi.articles
-      .filter((a) => excluded.every((al) => !hasAllergen(a, al)))
+      .filter((a) => excluded.every((al) => !hasAllergen(a, al)) && kcal(a) <= ceiling)
       .map((a) => a.articleCode)
       .sort();
 
-    await menuPage.goto();
-    await menuPage.openFilters();
     for (const al of excluded) await menuPage.excludeAllergen(al);
     await menuPage.applyFilters();
 
@@ -62,16 +68,14 @@ test.describe('Advanced filters – allergens', () => {
     expect(await menuPage.activeFilterCount()).toBe(1);
 
     await menuPage.openFilters();
-    await menuPage.clearFiltersButton.click();
-    // "Clear all" may or may not close the modal – handle both.
-    if (await menuPage.filterDialog.isVisible()) await menuPage.applyFilters();
+    await menuPage.clearAllFilters();
 
     await expect(menuPage.cards).toHaveCount(menuApi.articles.length);
     expect(await menuPage.activeFilterCount()).toBe(0);
   });
 });
 
-test.describe('Advanced filters – calories & categories', () => {
+test.describe('Advanced filters - calories & categories', () => {
   test('calorie ceiling shows only products at or under the limit', async ({ menuPage, menuApi }) => {
     const limit = 300;
     const expected = menuApi.articles
@@ -92,11 +96,9 @@ test.describe('Advanced filters – calories & categories', () => {
     const max = Math.max(...menuApi.articles.map(kcal));
     await menuPage.goto();
     await menuPage.openFilters();
-    const sliderMax = Number(await menuPage.calorieSlider.getAttribute('max'));
+    const sliderMax = await menuPage.calorieCeiling();
     test.info().annotations.push({ type: 'data', description: `slider max=${sliderMax}, highest product=${max} kcal` });
-
-    test.info().annotations.push(defectAnnotation(DEFECTS.CALORIE_SLIDER_MAX));
-    test.fail(max > sliderMax, DEFECTS.CALORIE_SLIDER_MAX.id);
+    knownDefect(DEFECTS.CALORIE_SLIDER_MAX, max > sliderMax);
     expect(sliderMax).toBeGreaterThanOrEqual(max);
   });
 
@@ -104,9 +106,8 @@ test.describe('Advanced filters – calories & categories', () => {
     const max = Math.max(...menuApi.articles.map(kcal));
     await menuPage.goto();
     await menuPage.openFilters();
-    const sliderMax = Number(await menuPage.calorieSlider.getAttribute('max'));
-    test.info().annotations.push(defectAnnotation(DEFECTS.CALORIE_SLIDER_MAX));
-    test.fail(max > sliderMax, DEFECTS.CALORIE_SLIDER_MAX.id);
+    const sliderMax = await menuPage.calorieCeiling();
+    knownDefect(DEFECTS.CALORIE_SLIDER_MAX, max > sliderMax);
 
     await menuPage.setMaxCalories(500);
     await menuPage.setMaxCalories(sliderMax);

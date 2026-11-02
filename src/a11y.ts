@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import type { Page, TestInfo } from '@playwright/test';
+import { expect, type Page, type TestInfo } from '@playwright/test';
 import { KNOWN_AXE_RULES } from './data/known-defects';
 
 export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -45,5 +45,8 @@ export async function scanA11y(page: Page, testInfo: TestInfo, include = 'main')
   return summary;
 }
 
-/** Violations not already logged as a known defect – these fail the build. */
-export const newViolations = (s: AxeSummary[]) => s.filter((v) => !v.knownDefect);
+/** Fails on any violation not already logged as a known defect. */
+export function expectNoNewViolations(summary: AxeSummary[]): void {
+  const fresh = summary.filter((v) => !v.knownDefect);
+  expect(fresh, JSON.stringify(fresh, null, 2)).toEqual([]);
+}

@@ -34,6 +34,8 @@ export class ProductPage {
   async allergenList(): Promise<string[]> {
     if ((await this.allergens.count()) === 0) return [];
     const text = (await this.allergens.innerText()).trim();
+    // Products with no allergens show "n/a" rather than an empty list.
+    if (/^n\/?a$/i.test(text)) return [];
     return text
       .split(',')
       .map((s) => s.trim())
@@ -49,7 +51,7 @@ export class ProductPage {
 
   /**
    * Parses the nutrition table into rows. Real markup is a <table> of <td>s only
-   * (no <th>) – rows look like: "Energy kcal | 337kcal | 347kcal".
+   * (no <th>) - rows look like: "Energy kcal | 337kcal | 347kcal".
    */
   async nutritionRows(): Promise<NutritionRow[]> {
     const rows = await this.nutritionTable

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * Turns Playwright's JSON report into a human-readable Markdown summary
- * (reports/SUMMARY.md). In GitHub Actions it is also appended to the job summary.
+ * (SUMMARY.md next to the input). In GitHub Actions it is also appended to the job summary.
  *
  * Usage: node scripts/summarise-results.mjs [reports/results.json]
  */
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 const input = process.argv[2] ?? 'reports/results.json';
 const report = JSON.parse(readFileSync(input, 'utf8'));
@@ -42,10 +43,10 @@ const skipped = (r) => r.outcome === 'skipped';
 
 const started = report.stats?.startTime ? new Date(report.stats.startTime).toISOString() : 'n/a';
 const lines = [];
-lines.push('# Greggs Menu – Test Run Summary', '');
-lines.push(`Run started: ${started} · Duration: ${Math.round((report.stats?.duration ?? 0) / 1000)}s`, '');
+lines.push('# Greggs Menu - Test Run Summary', '');
+lines.push(`Run started: ${started} | Duration: ${Math.round((report.stats?.duration ?? 0) / 1000)}s`, '');
 lines.push(
-  `**${rows.length} tests** · ✅ ${count(rows, passed)} passed · 🐞 ${count(rows, knownFail)} known defects (expected failures) · ❌ ${count(rows, failed)} failed · ⚠️ ${count(rows, flaky)} flaky · ⏭️ ${count(rows, skipped)} skipped`,
+  `**${rows.length} tests**: ${count(rows, passed)} passed, ${count(rows, knownFail)} known defects (expected failures), ${count(rows, failed)} failed, ${count(rows, flaky)} flaky, ${count(rows, skipped)} skipped`,
   '',
 );
 
@@ -56,29 +57,29 @@ for (const [project, list] of Object.entries(by('project'))) {
 
 const unexpected = rows.filter((r) => failed(r) && r.status !== 'passed');
 if (unexpected.length) {
-  lines.push('', '## ❌ Unexpected failures', '');
+  lines.push('', '## Unexpected failures', '');
   for (const r of unexpected) lines.push(`- **[${r.project}] ${r.title}** — ${r.error ?? r.status}`);
 }
 
 const fixedDefects = rows.filter((r) => r.outcome === 'unexpected' && r.status === 'passed');
 if (fixedDefects.length) {
-  lines.push('', '## 🎉 Known defects that now pass (remove `test.fail`)', '');
+  lines.push('', '## Known defects that now pass (remove the `knownDefect()` marker)', '');
   for (const r of fixedDefects) lines.push(`- [${r.project}] ${r.title}`);
 }
 
 const defects = new Set(rows.flatMap((r) => r.annotations.filter((a) => a.type === 'known-defect').map((a) => a.description)));
 if (defects.size) {
-  lines.push('', '## 🐞 Known defects exercised', '');
+  lines.push('', '## Known defects exercised', '');
   for (const d of [...defects].sort()) lines.push(`- ${d}`);
 }
 
 const metrics = rows.flatMap((r) => r.annotations.filter((a) => ['metrics', 'observation', 'data'].includes(a.type)).map((a) => a.description));
 if (metrics.length) {
-  lines.push('', '## 📈 Measurements & observations', '');
+  lines.push('', '## Measurements & observations', '');
   for (const m of [...new Set(metrics)]) lines.push(`- ${m}`);
 }
 
 const md = lines.join('\n') + '\n';
-writeFileSync('reports/SUMMARY.md', md);
+writeFileSync(join(dirname(input), 'SUMMARY.md'), md);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
 console.log(md);

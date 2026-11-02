@@ -1,16 +1,22 @@
 import { test, expect } from '../../src/fixtures';
 import { BUDGETS, measure, medianMetrics, type PageMetrics } from '../../src/perf';
 import { MENU_API_PATTERN } from '../../src/api/menu-api';
+import { SAUSAGE_ROLL } from '../../src/data/categories';
+import { DEFECTS, knownDefect, type KnownDefect } from '../../src/data/known-defects';
 
 /**
  * Lab performance checks against a live production site.
  * Each page is loaded RUNS times from a cold cache and the median is asserted, which
  * smooths out network noise. Results are attached as JSON for trend tracking.
- * Lab numbers on a CI runner are not field data – see README "Limitations".
+ * Lab numbers on a CI runner are not field data - see README "Limitations".
  */
 const RUNS = Number(process.env.PERF_RUNS ?? 3);
 
-async function assertBudgets(name: string, runs: PageMetrics[]) {
+/**
+ * `knownClsDefect` marks the test as an expected failure only when CLS is the sole budget
+ * breached - a regression in any other metric still fails the test outright.
+ */
+async function assertBudgets(name: string, runs: PageMetrics[], knownClsDefect?: KnownDefect) {
   const m = medianMetrics(runs);
   await test.info().attach(`${name}-metrics.json`, {
     body: JSON.stringify({ median: m, runs, budgets: BUDGETS }, null, 2),
@@ -18,33 +24,35 @@ async function assertBudgets(name: string, runs: PageMetrics[]) {
   });
   test.info().annotations.push({
     type: 'metrics',
-    description: `${name}: TTFB ${m.ttfb}ms · DCL ${m.domContentLoaded}ms · LCP ${m.lcp}ms · CLS ${m.cls} · TBT ${m.tbt}ms · ${m.transferKB}KB / ${m.requests} req`,
+    description: `${name}: TTFB ${m.ttfb}ms | DCL ${m.domContentLoaded}ms | LCP ${m.lcp}ms | CLS ${m.cls} | TBT ${m.tbt}ms | ${m.transferKB}KB / ${m.requests} req`,
   });
   expect.soft(m.ttfb, 'TTFB (ms)').toBeLessThanOrEqual(BUDGETS.ttfb);
   expect.soft(m.domContentLoaded, 'DOMContentLoaded (ms)').toBeLessThanOrEqual(BUDGETS.domContentLoaded);
   expect.soft(m.load, 'load (ms)').toBeLessThanOrEqual(BUDGETS.load);
   expect.soft(m.lcp, 'LCP (ms)').toBeLessThanOrEqual(BUDGETS.lcp);
-  expect.soft(m.cls, 'CLS').toBeLessThanOrEqual(BUDGETS.cls);
   expect.soft(m.tbt, 'TBT (ms)').toBeLessThanOrEqual(BUDGETS.tbt);
+  if (knownClsDefect && test.info().errors.length === 0) knownDefect(knownClsDefect, m.cls > BUDGETS.cls);
+  expect.soft(m.cls, 'CLS').toBeLessThanOrEqual(BUDGETS.cls);
 }
 
-test.describe('Performance – page load (median of cold loads)', () => {
-  test('menu page meets load and Core Web Vitals budgets', async ({ browser }) => {
+test.describe('Performance - page load (median of cold loads)', () => {
+  test('menu page meets load and Core Web Vitals budgets', async ({ browser, baseURL, userAgent }) => {
     test.setTimeout(RUNS * 45_000);
     const runs: PageMetrics[] = [];
-    for (let i = 0; i < RUNS; i++) runs.push(await measure(browser, '/menu'));
-    await assertBudgets('menu', runs);
+    for (let i = 0; i < RUNS; i++) runs.push(await measure(browser, '/menu', { baseURL, userAgent }));
+    await assertBudgets('menu', runs, DEFECTS.MENU_LAYOUT_SHIFT);
   });
 
-  test('product detail page meets load and Core Web Vitals budgets', async ({ browser }) => {
+  test('product detail page meets load and Core Web Vitals budgets', async ({ browser, baseURL, userAgent }) => {
     test.setTimeout(RUNS * 45_000);
     const runs: PageMetrics[] = [];
-    for (let i = 0; i < RUNS; i++) runs.push(await measure(browser, '/menu/product/sausage-roll-1000446'));
+    const path = `/menu/product/${SAUSAGE_ROLL.slug}`;
+    for (let i = 0; i < RUNS; i++) runs.push(await measure(browser, path, { baseURL, userAgent }));
     await assertBudgets('product', runs);
   });
 });
 
-test.describe('Performance – behaviour', () => {
+test.describe('Performance - behaviour', () => {
   test('menu API responds quickly', async ({ page }) => {
     const start = Date.now();
     const [res] = await Promise.all([page.waitForResponse(MENU_API_PATTERN), page.goto('/menu')]);
@@ -93,6 +101,7 @@ test.describe('Performance – behaviour', () => {
     sizes.sort((x, y) => y.kb - x.kb);
     test.info().annotations.push({ type: 'metrics', description: `largest thumbnails: ${sizes.slice(0, 3).map((s) => `${s.name} ${s.kb}KB`).join(', ')}` });
     const tooBig = sizes.filter((s) => s.kb > 250);
-    expect.soft(tooBig, 'thumbnails over 250KB').toEqual([]);
+    knownDefect(DEFECTS.THUMBNAIL_WEIGHT, tooBig.length > 0);
+    expect(tooBig, 'thumbnails over 250KB').toEqual([]);
   });
 });

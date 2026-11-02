@@ -23,7 +23,8 @@ const IngredientSchema = z.object({
 export const ArticleSchema = z
   .object({
     articleCode: z.string().regex(/^\d{7}$/, 'articleCode should be a 7-digit string'),
-    articleName: z.string().trim().min(1),
+    // Validate without .trim(): a transform would hide the whitespace the data-quality spec checks for.
+    articleName: z.string().regex(/\S/, 'articleName should not be blank'),
     isPublished: z.boolean(),
     isHiddenInMenu: z.boolean(),
     articleCategoryId: z.number().int().positive(),
@@ -34,9 +35,10 @@ export const ArticleSchema = z
     ingredients: z.array(IngredientSchema),
     imageUri: z.string().url(),
     thumbnailUri: z.string().url(),
-    sortOrder: z.number().int(),
+    // Nullable so one bad record doesn't mask other contract breaks; data-quality spec checks it (GM-011).
+    sortOrder: z.number().int().nullable(),
   })
-  // Unknown/extra fields are allowed – we only pin what the UI depends on.
+  // Unknown/extra fields are allowed - we only pin what the UI depends on.
   .passthrough();
 
 export const MenuResponseSchema = z.array(ArticleSchema);
@@ -57,6 +59,16 @@ export function kcal(article: Article): number {
 
 export function allergens(article: Article): string[] {
   return article.ingredients.filter((i) => i.isAllergen).map((i) => i.name);
+}
+
+/**
+ * Energy figures disagree beyond what rounding explains. Relative tolerance alone is
+ * meaningless for drinks of ~10 kcal (1 kcal of rounding is already ~10%), so a gap
+ * must exceed BOTH the relative tolerance and an absolute 10 kJ (~2.4 kcal) floor.
+ */
+export function energyMismatch(a: number, b: number, relTolerance: number): boolean {
+  const diff = Math.abs(a - b);
+  return diff > 10 && diff / Math.max(a, b) > relTolerance;
 }
 
 export function hasAllergen(article: Article, allergen: string): boolean {

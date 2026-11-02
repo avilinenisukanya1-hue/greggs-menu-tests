@@ -10,13 +10,11 @@ on:
         description: 'Only run tests matching this pattern (e.g. @smoke)'
         required: false
   schedule:
-    # Daily at 06:17 UTC – the menu is content-managed and changes without code deploys.
+    # Daily at 06:17 UTC - the menu is content-managed and changes without code deploys.
     - cron: '17 6 * * *'
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: menu-tests-${{ github.ref }}
@@ -44,13 +42,26 @@ jobs:
         run: npm run typecheck
 
       - name: Run Playwright suite
-        run: npx playwright test ${{ github.event.inputs.grep && format('--grep "{0}"', github.event.inputs.grep) || '' }}
+        # Pass the dispatch input through env, never interpolate it into the script (shell injection).
+        run: npx playwright test ${GREP:+--grep "$GREP"}
         env:
           CI: 'true'
+          GREP: ${{ github.event.inputs.grep }}
 
       - name: Summarise results
         if: always()
         run: node scripts/summarise-results.mjs
+
+      # Separate run so perf timings aren't skewed by the functional suite's traffic.
+      - name: Run performance checks
+        if: always() && (github.event.inputs.grep == '' || github.event.inputs.grep == null)
+        run: npm run test:perf
+        env:
+          CI: 'true'
+
+      - name: Summarise performance results
+        if: always() && hashFiles('reports/perf/results.json') != ''
+        run: npm run summary:perf
 
       - name: Upload HTML report & raw results
         if: always()
@@ -62,6 +73,9 @@ jobs:
             reports/junit.xml
             reports/results.json
             reports/SUMMARY.md
+            reports/perf/html
+            reports/perf/results.json
+            reports/perf/SUMMARY.md
           retention-days: 30
 
       - name: Upload failure traces
@@ -69,7 +83,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: traces-${{ github.run_number }}
-          path: reports/artifacts
+          path: |
+            reports/artifacts
+            reports/perf/artifacts
           retention-days: 14
 
       - name: Prepare Pages artifact
@@ -82,8 +98,11 @@ jobs:
     needs: test
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Needs Settings → Pages → Source: "GitHub Actions". Non-blocking if not enabled.
+    # Needs Settings > Pages > Source: "GitHub Actions". Non-blocking if not enabled.
     continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

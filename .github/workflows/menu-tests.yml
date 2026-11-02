@@ -49,22 +49,26 @@ jobs:
           GREP: ${{ github.event.inputs.grep }}
 
       - name: Summarise results
-        if: always()
+        if: ${{ !cancelled() }}
         run: node scripts/summarise-results.mjs
 
       # Separate run so perf timings aren't skewed by the functional suite's traffic.
+      # Report-only in CI: hosted runners are 2-vCPU machines in the US, so CPU-bound
+      # metrics (TBT) and UK-hosted latency miss the budgets set for a local machine.
+      # Results are still recorded in the summary and the published report.
       - name: Run performance checks
-        if: always() && (github.event.inputs.grep == '' || github.event.inputs.grep == null)
+        if: ${{ !cancelled() && !github.event.inputs.grep }}
+        continue-on-error: true
         run: npm run test:perf
         env:
           CI: 'true'
 
       - name: Summarise performance results
-        if: always() && hashFiles('reports/perf/results.json') != ''
+        if: ${{ !cancelled() && hashFiles('reports/perf/results.json') != '' }}
         run: npm run summary:perf
 
       - name: Upload HTML report & raw results
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.run_number }}
@@ -88,15 +92,19 @@ jobs:
             reports/perf/artifacts
           retention-days: 14
 
+      - name: Add performance report to the published site
+        if: ${{ !cancelled() && hashFiles('reports/perf/html/index.html') != '' }}
+        run: cp -r reports/perf/html reports/html/perf
+
       - name: Prepare Pages artifact
-        if: always() && github.ref == 'refs/heads/main'
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && hashFiles('reports/html/index.html') != '' }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: reports/html
 
   publish-report:
     needs: test
-    if: always() && github.ref == 'refs/heads/main'
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     # Needs Settings > Pages > Source: "GitHub Actions". Non-blocking if not enabled.
     continue-on-error: true

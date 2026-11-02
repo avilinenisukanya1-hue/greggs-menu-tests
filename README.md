@@ -1,121 +1,98 @@
-# Greggs.com Menu - Automated Quality Suite
+# Greggs Menu Tests
 
-Playwright + TypeScript suite covering the **Menu** section of [greggs.com](https://www.greggs.com/menu): functional behaviour, data consistency, accessibility, responsiveness and performance.
+Automated tests for the Menu section of [greggs.com](https://www.greggs.com/menu), written with Playwright and TypeScript.
 
-**119 tests, 6 Playwright projects, 13 defects found** (see [`docs/FINDINGS.md`](docs/FINDINGS.md))
-
-| Doc | What's in it |
-|---|---|
-| [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) | Scope, risk analysis, full coverage matrix, what's out of scope |
-| [`docs/FINDINGS.md`](docs/FINDINGS.md) | Defects with steps, evidence, WCAG mapping and suggested fixes |
-| [`reports/SUMMARY.md`](reports/SUMMARY.md), [`reports/perf/SUMMARY.md`](reports/perf/SUMMARY.md) | Results of the latest full run (HTML report is generated per run / published by CI) |
-
----
+- Latest test report (GitHub Pages): https://avilinenisukanya1-hue.github.io/greggs-menu-tests/
+- Latest performance report: https://avilinenisukanya1-hue.github.io/greggs-menu-tests/perf/
+- Defects found: [docs/FINDINGS.md](docs/FINDINGS.md)
+- Test plan: [docs/TEST_PLAN.md](docs/TEST_PLAN.md)
+- Summary of the last local run: [reports/SUMMARY.md](reports/SUMMARY.md) and [reports/perf/SUMMARY.md](reports/perf/SUMMARY.md)
 
 ## What I tested
 
-| Area | Highlights |
-|---|---|
-| **Functional** | Page rendering & metadata, category pills (every category, deep links, "All", invalid slugs, reload, Back), search (case, whitespace, multi-word, empty state, XSS), **allergen filter for all 11 allergens**, calorie filter, product cards -> detail pages, 404 handling |
-| **Data consistency** | Menu API contract (Zod schema), data quality rules (kJ ~ kcal x 4.184, saturates <= fat, sugar <= carbs, no duplicates/unpublished/hidden items, every image resolves), **UI vs API**: listing matches product-for-product, products sit in the right section, detail pages match calories, kJ, portion and allergens |
-| **Accessibility** | axe-core WCAG 2.2 AA on 5 page states, keyboard operation (Tab/Enter, focus ring, dialog focus trap/Escape/return), heading structure, accessible names, table semantics |
-| **Responsive** | 320 / 390 / 700 / 1024 / 1440px - no horizontal scroll (WCAG 1.4.10 reflow), correct 2/3/4-column grid, usable pill bar, 24x24px targets (WCAG 2.5.8), smoke journeys on Pixel 7 (Chromium) and iPhone 14 (WebKit) |
-| **Performance** | Median of 3 cold loads: TTFB, DCL, load, **LCP, CLS, TBT** with budgets, menu API latency, lazy-loading of images, client-side category switch speed, thumbnail weight |
+The suite has 119 tests and covers the five areas in the brief.
 
-## Why this approach
+- Functional: menu page loads, category filters (including deep links, reload and Back), search, the allergen and calorie filters, and navigation from a product card to its detail page.
+- Data consistency: the menu API that feeds the page is checked against a schema and some basic data rules (for example, saturated fat should never be more than total fat). The products, names, calories and allergens shown on the page are then compared with the API.
+- Accessibility: axe-core scans against WCAG 2.2 AA, plus keyboard checks (tabbing to filters and cards, opening and closing the filter dialog) and heading structure.
+- Responsiveness: layout checks at 320, 390, 700, 1024 and 1440px wide, and the main journeys on an Android (Pixel 7) and iPhone (iPhone 14) profile.
+- Performance: load time, LCP, CLS and TBT for the menu and a product page, plus image lazy-loading and image size.
 
-**1. The live API is the oracle, not hard-coded data.** Greggs' menu is seasonal - on the day I built this it included the Festive Bake and Candy Cane hot chocolate. A suite that asserts "Breakfast has 19 items" breaks within weeks. Instead, a worker-scoped fixture captures the exact `articles/masters` response the page itself requests, validates it, and every test derives its expectation from it. Tests only change when **behaviour** changes.
+I found 13 defects. The most important ones:
 
-**2. Depth follows risk.** The allergen filter is the one place a bug can hurt someone, so it gets exhaustive coverage: every allergen x every product, checked in both directions (nothing containing the allergen leaks through *and* nothing safe is wrongly hidden). Lower-risk areas get proportionate coverage.
+- The calorie slider stops at 4000 kcal, but one pizza box is 4012 kcal. Because the slider limit is always applied, that product disappears from search and from every allergen filter, not only when the slider is used.
+- The calorie slider and the filter dialog's close button have no accessible name, so screen reader users can't tell what they are.
+- The product page scrolls sideways on a 320px screen.
+- The menu page layout shifts when the product grid loads (CLS about 0.13, above the 0.1 target).
 
-**3. Explore first, then automate.** Before writing tests I mapped the DOM, the `data-test*` hooks, the Nuxt data flow and the API in a real browser. That's where the [findings](docs/FINDINGS.md) came from, and why selectors use the site's own `data-test-card`, `data-test-filter`, `data-test="filterButton"` hooks and ARIA roles rather than brittle CSS.
+Full details, with steps to reproduce, are in [docs/FINDINGS.md](docs/FINDINGS.md).
 
-**4. Known defects are tests, not comments.** Each defect is a test that asserts the *correct* behaviour, marked `test.fail()` with an ID. The build stays green while the bug exists; when Greggs fixes it, Playwright reports *"unexpectedly passed"* and the summary lists it for clean-up - at which point it becomes a regression guard. axe violations already logged are annotated, but any **new** violation fails the build.
+## Why I chose this approach
 
-**5. Why Playwright.** Cross-engine (Chromium + WebKit for real iOS rendering), first-class network interception (needed to capture the oracle), built-in device emulation, `addLocatorHandler` for the cookie banner, auto-waiting that avoids sleeps, and traces for debugging CI failures. TypeScript + Zod give a typed, validated contract for the API.
+The menu changes often (seasonal items come and go), so I didn't hard-code product lists or counts. The tests read the same API response the menu page loads and work out the expected result from it. That way the tests only need updating when the behaviour changes, not when the menu does.
 
-### Project structure
+I spent the most effort on the allergen filter, because a bug there could affect someone's health. Every allergen is checked against every product, in both directions: nothing containing the allergen should be shown, and nothing safe should be hidden.
 
-```
-src/
-  fixtures.ts            test.extend: page objects, cookie-banner handler, worker-scoped API snapshot
-  pages/                 MenuPage, ProductPage (page objects)
-  api/menu-api.ts        Zod schema + helpers (kcal, allergens...)
-  data/categories.ts     category ids/slugs/labels, allergen list, anchor products
-  data/known-defects.ts  defect registry (GM-001..GM-013) + knownDefect() marker
-  a11y.ts, perf.ts       axe wrapper, Web Vitals collection & budgets
-  cookie-banner.ts       OneTrust consent preset + "Reject all" fallback handler
-tests/
-  functional/  data/  accessibility/  responsive/  performance/
-playwright.config.ts            functional / a11y / responsive / mobile projects
-playwright.perf.config.ts       performance project, run on its own
-scripts/summarise-results.mjs   JSON report -> SUMMARY.md (+ GitHub job summary)
-.github/workflows/menu-tests.yml  CI: push/PR/daily schedule, artifacts, report on GitHub Pages
-```
+Before writing any tests I explored the site by hand in the browser. That is where most of the defects came from. It also showed me that the site has its own `data-test` attributes, which I used as selectors because they are more stable than CSS classes.
 
-## How to run
+Each known defect has a test that checks the correct behaviour and is marked as an expected failure (`test.fail()`) with its defect ID. The build stays green while the defect exists. When Greggs fixes it, Playwright reports the test as "unexpectedly passed", so it is easy to spot and turn into a normal regression test.
 
-Requires **Node 20+** (`.nvmrc` pins 22).
+I used Playwright because it runs both Chromium and WebKit, has good device emulation, and makes it easy to capture network responses, which the API comparisons rely on.
+
+## How to run the tests
+
+You need Node 20 or later.
 
 ```bash
 npm ci
-npm run install:browsers      # Chromium + WebKit (with OS deps)
+npm run install:browsers
 
-npm test                      # functional, data, a11y, responsive, mobile (113 tests, ~4 min)
-npm run test:smoke            # @smoke journeys only
-npm run test:functional       # functional + data consistency
-npm run test:a11y
-npm run test:responsive
-npm run test:mobile           # Pixel 7 + iPhone 14
-npm run test:perf             # separate config, 1 worker - see below
-
-npm run summary               # write reports/SUMMARY.md from the last run
-npm run report                # open the HTML report
-npm run report:perf           # perf run has its own report in reports/perf/
+npm test            # main suite: functional, data, accessibility, responsive, mobile
+npm run test:perf   # performance tests (run separately, see Limitations)
 ```
 
-Useful options:
+Other commands:
 
 ```bash
-npx playwright test --ui                          # interactive runner
-npx playwright test -g "No Milk"                  # single test by name
-BASE_URL=https://staging.example npm test         # point at another environment
-PERF_RUNS=5 BUDGET_LCP=2500 npm run test:perf     # stricter perf budgets
+npm run test:smoke        # quick smoke tests only
+npm run test:a11y         # accessibility only
+npm run report            # open the HTML report from the last run
+npm run summary           # write reports/SUMMARY.md from the last run
+npx playwright test --ui  # interactive mode
 ```
 
-### Reports
+## Test reports
 
-Each run writes to `reports/`:
+Each run writes an HTML report, JUnit XML and a JSON file to `reports/` (performance results go to `reports/perf/`). `npm run summary` turns the results into a short readable summary.
 
-- `html/` - Playwright HTML report (traces, screenshots & video on failure; axe JSON and perf metrics attached to their tests)
-- `junit.xml` - for any CI dashboard
-- `results.json` -> `SUMMARY.md` - pass / known-defect / fail counts per project, defects exercised, and every measurement (Web Vitals, API latency, lazy-loading ratio, kJ drift)
+The tests also run in GitHub Actions on every push and once a day. Each run uploads the reports as build artifacts and publishes the HTML reports to GitHub Pages:
 
-In GitHub Actions the summary appears on the run page, the full report is uploaded as an artifact, and on `main` it is published to **GitHub Pages** (enable *Settings -> Pages -> Source: GitHub Actions*). A daily scheduled run catches content changes that ship without a code deploy.
+- Main suite: https://avilinenisukanya1-hue.github.io/greggs-menu-tests/
+- Performance: https://avilinenisukanya1-hue.github.io/greggs-menu-tests/perf/
+
+In the report, tests for known defects are listed as expected failures, each with its defect ID.
 
 ## Assumptions
 
-- **Production is the target.** There's no public staging environment, so the suite runs read-only against `www.greggs.com`, with low worker counts and batched image checks to keep traffic modest. Nothing is ordered, submitted or signed into.
-- **The `articles/masters` response is the source of truth** for what the menu should show. If the API itself were wrong, UI vs API checks wouldn't catch it - which is why the API also has its own contract and data-quality tests.
-- **Search semantics** were inferred by exploration (product name only, words in order, case-insensitive) and encoded as the oracle. If that is not the intended behaviour, only the oracle function needs to change.
-- **Cookie banner** is suppressed by pre-setting OneTrust's consent cookies to *necessary only* (the same state as *Reject all*), with a locator handler as a fallback. OneTrust loads late, and a banner appearing mid-test steals keyboard focus. Behaviour with analytics cookies accepted isn't covered.
-- **UK locale** (`en-GB`, `Europe/London`).
+- The tests run against the live site, as there is no public test environment. They only read pages. Nothing is ordered or submitted, and the number of parallel tests is kept low.
+- The menu API response is treated as the source of truth for what the page should show. The API also has its own checks, in case the data itself is wrong.
+- Search behaviour was worked out by trying it: it matches product names only, is not case-sensitive, and the words must appear in order.
+- The cookie banner is set to "necessary cookies only" before each test, so it doesn't get in the way.
+- UK locale and time zone.
 
 ## Limitations
 
-- **Performance runs on its own.** `npm test` doesn't include the perf specs: timings measured while ~100 functional tests load the same site are noise. `npm run test:perf` uses `playwright.perf.config.ts` (1 worker, no retries) and CI runs it as a separate step.
-- **Lab, not field, performance.** Budgets are measured from a CI runner/laptop on a cold cache; they indicate regressions, not real-user Core Web Vitals (use CrUX/RUM for that). Perf assertions are *soft*, so one slow metric doesn't hide the others.
-- **Automated accessibility is partial.** axe only detects a subset of WCAG issues. Keyboard and semantic tests extend that, but screen-reader announcement quality, cognitive load and zoom-to-400% were checked only lightly by hand.
-- **Detail pages are sampled** (first + last product per category + highest-calorie items, ~15 pages) to keep run time reasonable. Run-time vs coverage can be tuned in `sample()` in `tests/data/ui-api-consistency.spec.ts`.
-- **Bot protection.** Production CDNs can challenge datacenter IPs. If CI runs are blocked, run locally or from a self-hosted runner.
-- **Third parties** (OneTrust, reCAPTCHA, Sentry) are excluded from axe scans and error checks - they're not Greggs-owned code.
-- **No visual regression** - the menu changes daily, so pixel snapshots would be noise. Layout is verified geometrically instead.
-- **Firefox** isn't in the default matrix (one line to add in `playwright.config.ts`).
+- Performance tests run on their own, with a single worker, because timings taken while the other tests are hitting the site aren't reliable. They are lab measurements from one machine, so they show regressions but are not real-user data. In GitHub Actions the performance results are recorded but don't fail the build: the hosted runners are small machines in the US, so their numbers (especially TBT) aren't comparable with the budgets, which were set on a local machine in the UK.
+- Automated accessibility checks only catch part of WCAG. Screen reader output and 400% zoom were only checked briefly by hand.
+- Product detail pages are sampled (about 15 of 143) to keep the run time reasonable.
+- The live site has bot protection, which can sometimes block CI runners.
+- Third-party scripts (cookie banner, reCAPTCHA) are left out of the accessibility scans and error checks.
+- No visual screenshot comparison, because the menu content changes too often for it to be useful.
+- Firefox is not included, but can be added in `playwright.config.ts`.
 
-## What I'd add next
+## What I would add next
 
-- Lighthouse CI for a fuller perf/SEO/best-practices audit and trend history
-- Contract test on the Nuxt `_payload.json` SSR data, to catch SSR/CSR drift
-- Synthetic monitoring: run `@smoke` every 15 minutes and alert on failure
-- Screen-reader smoke with Guidepup (VoiceOver/NVDA) for the filter dialog
-- Firefox project and a 400% zoom reflow check
+- Lighthouse CI to track performance and SEO over time
+- Screen reader tests for the filter dialog
+- A Firefox run and a 400% zoom check
+- Running the smoke tests on a schedule as a simple uptime monitor
